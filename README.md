@@ -1,4 +1,8 @@
-# PeakCut
+# PeakCut (Fork)
+
+> Forked from [PeakCut](https://github.com/haziqahmedqasmi/PeakCut) by haziqahmedqasmi (MIT). Additional features and redesign by Sangram Adhikary.
+
+![tests](https://github.com/SANGRAMADHIKARYsrc/PeakCut/actions/workflows/tests.yml/badge.svg)
 
 Turn long videos and live streams into captioned vertical clips, ready to post. Free and open source: run it on
 your own computer or server, with your own AI key.
