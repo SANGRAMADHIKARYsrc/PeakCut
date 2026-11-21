@@ -164,7 +164,18 @@ def _hook_events(hook, dur, y):
 
 
 def build_ass(words, start, end, hook, style_name, highlight, hook_y, cap_y) -> str:
-    st = STYLES.get(style_name, STYLES["bounce"])
+    from . import presets
+    if isinstance(style_name, dict):
+        st = presets.to_ass_style(style_name)
+    elif style_name in STYLES:
+        st = STYLES[style_name]
+    else:
+        st = presets.to_ass_style(style_name)
+    pos = st.get("position", "bottom")
+    if pos == "top":
+        cap_y = min(hook_y + 180, 420)
+    elif pos == "middle":
+        cap_y = H // 2
     words = [dict(w, s=w["s"] - CAPTION_LEAD, e=w["e"] - CAPTION_LEAD) for w in words]
     strong = {_key(h) for h in highlight if _key(h)}
     head = f"""[Script Info]

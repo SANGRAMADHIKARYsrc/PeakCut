@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from . import admin as admins
 from . import account, load
 from . import (accounts, ai, alerts, auth, brain, config, creators, ctx, db, jobs, live, media, posting,
-               profiles, render, safe, transcribe, usage)
+               presets, profiles, render, safe, transcribe, usage)
 
 from . import tools as _tools  # noqa: E402
 
@@ -608,10 +608,11 @@ def status(request: Request):
     from . import notices
     from . import updates
     me_ = _me(request)
+    all_p = presets.list_presets(me_.id if me_ else "")
     return {"user": auth.public(me_), "update": updates.latest() if me_.is_admin else None, "accounts": config.ACCOUNTS, "disk_full": load.disk_full(), "no_ffmpeg": bool(_tools.missing()), "links": {"repo": config.REPO_URL, "follow": config.FOLLOW_URL}, "ai": usage.brief(), "unread": notices.unread(),
             "tour": not accounts.settings()["tour_done"],
             "youtube": accounts.youtube_ready(), "connect": {p: accounts.can_connect(p) for p in accounts.PLATFORM_NAMES}, "max_upload_mb": config.MAX_UPLOAD_MB, "upload_part_mb": config.UPLOAD_PART_MB, "max_batch": config.MAX_ACTIVE_JOBS_PER_USER,
-            "styles": {k: v["label"] for k, v in render.STYLES.items()}, "layouts": render.LAYOUTS, "speech": _speech_brief()}
+            "styles": {p["id"]: p["name"] for p in all_p}, "presets": all_p, "layouts": render.LAYOUTS, "speech": _speech_brief()}
 
 
 def _speech_brief() -> dict:
@@ -1263,6 +1264,39 @@ def creator_avatar(cid: str, p: str = ""):
     if not f.is_file() or prof.get("pic") not in ("image/jpeg", "image/png", "image/webp"):
         raise HTTPException(404)
     return FileResponse(f, media_type=prof["pic"], headers={"Cache-Control": "private, max-age=86400"})
+
+
+# ================================================================ caption presets
+@app.get("/api/presets")
+def list_caption_presets():
+    return presets.list_presets()
+
+
+@app.get("/api/presets/{pid}")
+def get_caption_preset(pid: str):
+    p = presets.get_preset(pid)
+    if not p:
+        raise HTTPException(404, "Preset not found")
+    return p
+
+
+@app.post("/api/presets")
+def save_caption_preset(body: dict = Body(...)):
+    try:
+        return presets.save_preset(body)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@app.delete("/api/presets/{pid}")
+def delete_caption_preset(pid: str):
+    try:
+        ok = presets.delete_preset(pid)
+        if not ok:
+            raise HTTPException(404, "Preset not found")
+        return {"status": "ok"}
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
 
 
 @app.get("/api/creators")

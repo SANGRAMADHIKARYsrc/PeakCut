@@ -887,6 +887,7 @@ dialog[open]{animation:fadein .16s ease}
 </div>
 <dialog id="clipdlg"></dialog>
 <dialog id="formdlg"></dialog>
+<dialog id="presetdlg"></dialog>
 <input type="file" id="file" accept="video/*" multiple hidden>
 <div id="toasts" role="status" aria-live="polite"></div>
 <div class="pop" id="bellpop" role="dialog" aria-label="Notifications" hidden></div>
@@ -1454,6 +1455,7 @@ function drawAdd(variant) {
       <div class="ob wide"><label class="f"><span class="ot" style="margin:0">Description for every clip <span style="font-weight:400">(optional)</span></span>
         <textarea id="o_desc" rows="3" maxlength="2000" placeholder="Left empty, the AI writes a different one for each clip. Write it once here and it is the description of every clip, exactly as typed." aria-label="Description for every clip">${esc(c?.description_text || "")}</textarea></label></div>
       <div class="ob"><div class="ot cap-head"><span id="o_style_label">Caption style</span>
+        <button type="button" class="btn sm" data-act="openpresetdlg" style="margin-left:auto;height:26px;padding:0 8px;font-size:12px">${ic("sliders")}Style designer</button>
         <label><input type="checkbox" id="o_captions" data-caption-toggle ${c?.captions === false ? "" : "checked"}>Generate captions</label></div>
         ${choice("o_style", Object.entries(S.status.styles).map(([k, v]) => ({v:k, label:v, prev:capPrev(k)})), c?.style ?? "bounce", c?.captions === false)}</div>
       <div class="ob"><div class="ot">Layout</div>${choice("o_layout", Object.entries(S.status.layouts).map(([k, v]) => ({v:k, label:LAYOUT_SHORT[k] || v, title:v, prev:`<span class="lay-prev ${esc(k)}"><span class="ph"><i></i></span></span>`})), c?.layout ?? "blur")}</div>
@@ -1484,9 +1486,204 @@ function setLang(v) {   // when the creator is changed in the add bar, their lan
 document.addEventListener("change", e => { if (e.target.id === "o_creator") setLang(S.creators.find(x => x.id === e.target.value)?.lang || "en"); });
 const CAP_LOOK = {bounce:{font:"'Archivo Black'", hl:"#FFFF00", up:true}, hype:{font:"Anton", hl:"#FF3C3C", up:true}, clean:{font:"Poppins", hl:"#6BD7FF", up:false, w:800}};
 function capPrev(k) {
-  const s = CAP_LOOK[k] || {font:"inherit", hl:"#FF8B33", up:true};
+  let s = CAP_LOOK[k];
+  if (!s && S.status?.presets) {
+    const p = S.status.presets.find(x => x.id === k);
+    if (p) {
+      const font = p.font === "Anton" ? "Anton" : p.font === "Archivo Black" ? "'Archivo Black'" : "Poppins";
+      s = {font, hl: p.highlight_color || "#FFFF00", up: p.uppercase};
+    }
+  }
+  s = s || {font:"inherit", hl:"#FF8B33", up:true};
   const t = s.up ? ["CLIP", "THIS"] : ["Clip", "this"];
-  return `<span class="cap-prev" style="font-family:${s.font},sans-serif;font-weight:${s.w || 400}">${t[0]}&nbsp;<b style="color:${s.hl}">${t[1]}</b></span>`;
+  return `<span class="cap-prev" style="font-family:${s.font},sans-serif;font-weight:${s.w || 800}">${t[0]}&nbsp;<b style="color:${s.hl}">${t[1]}</b></span>`;
+}
+
+function openPresetDesigner(presetId = "") {
+  const d = $("#presetdlg"); if (!d) return;
+  const presets = S.status?.presets || [];
+  const cur = presets.find(p => p.id === presetId) || {
+    id: "",
+    name: "My Custom Style",
+    font: "Poppins ExtraBold",
+    size: 132,
+    primary_color: "#FFFFFF",
+    highlight_color: "#00F0FF",
+    outline_color: "#000000",
+    outline_width: 7,
+    shadow: 0,
+    position: "bottom",
+    uppercase: true,
+    max_words_per_line: 3
+  };
+
+  d.innerHTML = `
+    <div class="dlg preset-modal" style="width:680px;max-width:calc(100vw - 32px);max-height:calc(100vh - 48px);overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h2>Caption Style Designer</h2>
+        <button type="button" class="icon-btn" data-act="closepreset">${ic("x")}</button>
+      </div>
+      <p class="help">Design and preview custom caption typography and styling for your clips.</p>
+
+      <div style="display:grid;grid-template-columns:1fr 240px;gap:20px;align-items:start">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <label class="f">Style Name
+            <input id="ps_name" value="${esc(cur.name)}" placeholder="e.g. Bold Neon">
+          </label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <label class="f">Font
+              <select id="ps_font">
+                <option value="Poppins ExtraBold"${cur.font === "Poppins ExtraBold" ? " selected" : ""}>Poppins ExtraBold</option>
+                <option value="Anton"${cur.font === "Anton" ? " selected" : ""}>Anton</option>
+                <option value="Archivo Black"${cur.font === "Archivo Black" ? " selected" : ""}>Archivo Black</option>
+              </select>
+            </label>
+            <label class="f">Position
+              <select id="ps_pos">
+                <option value="bottom"${cur.position === "bottom" ? " selected" : ""}>Bottom</option>
+                <option value="middle"${cur.position === "middle" ? " selected" : ""}>Middle</option>
+                <option value="top"${cur.position === "top" ? " selected" : ""}>Top</option>
+              </select>
+            </label>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <label class="f">Text Color
+              <div style="display:flex;align-items:center;gap:8px">
+                <input type="color" id="ps_pri_color" value="${esc(cur.primary_color)}" style="width:40px;height:38px;padding:2px;cursor:pointer">
+                <input id="ps_pri_hex" value="${esc(cur.primary_color)}" maxlength="7" style="font-family:monospace">
+              </div>
+            </label>
+            <label class="f">Highlight Color
+              <div style="display:flex;align-items:center;gap:8px">
+                <input type="color" id="ps_hl_color" value="${esc(cur.highlight_color)}" style="width:40px;height:38px;padding:2px;cursor:pointer">
+                <input id="ps_hl_hex" value="${esc(cur.highlight_color)}" maxlength="7" style="font-family:monospace">
+              </div>
+            </label>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <label class="f">Outline Width (<span id="ps_out_val">${cur.outline_width}px</span>)
+              <input type="range" id="ps_outline" min="0" max="15" value="${cur.outline_width}">
+            </label>
+            <label class="f">Words Per Line
+              <select id="ps_words">
+                <option value="2"${cur.max_words_per_line === 2 ? " selected" : ""}>2 words</option>
+                <option value="3"${cur.max_words_per_line === 3 ? " selected" : ""}>3 words</option>
+                <option value="4"${cur.max_words_per_line === 4 ? " selected" : ""}>4 words</option>
+                <option value="5"${cur.max_words_per_line === 5 ? " selected" : ""}>5 words</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="ck" style="margin-top:4px">
+            <input type="checkbox" id="ps_upper"${cur.uppercase ? " checked" : ""}> UPPERCASE TEXT
+          </label>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <span style="font-size:12px;font-weight:600;color:var(--dim)">9:16 Live Preview</span>
+          <div id="ps_preview_box" style="background:#0D0B0A;border:1px solid var(--line-2);border-radius:12px;height:320px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:16px;position:relative;overflow:hidden">
+            <div id="ps_preview_content" style="text-align:center;transition:all .12s ease"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dlg-foot" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+        ${cur.id && !cur.builtin ? `<button type="button" class="btn danger" data-act="delpreset" data-id="${esc(cur.id)}">${ic("trash")}Delete</button>` : ""}
+        <span style="flex:1"></span>
+        <button type="button" class="btn" data-act="closepreset">Cancel</button>
+        <button type="button" class="btn primary" data-act="savepreset" data-id="${esc(cur.id || "")}">${ic("check")}Save Preset</button>
+      </div>
+    </div>
+  `;
+
+  const syncPreview = () => {
+    const font = $("#ps_font")?.value || "Poppins ExtraBold";
+    const pri = $("#ps_pri_hex")?.value || "#FFFFFF";
+    const hl = $("#ps_hl_hex")?.value || "#00F0FF";
+    const outW = Number($("#ps_outline")?.value) || 0;
+    const pos = $("#ps_pos")?.value || "bottom";
+    const upper = $("#ps_upper")?.checked;
+    const words = [upper ? "THIS" : "This", upper ? "IS" : "is", upper ? "AMAZING" : "amazing"];
+
+    const box = $("#ps_preview_box");
+    if (box) {
+      box.style.justifyContent = pos === "top" ? "flex-start" : pos === "middle" ? "center" : "flex-end";
+    }
+    const pc = $("#ps_preview_content");
+    if (pc) {
+      pc.style.fontFamily = `"${font}", sans-serif`;
+      pc.style.fontWeight = "800";
+      pc.style.fontSize = "22px";
+      pc.style.color = pri;
+      pc.style.textShadow = outW > 0 ? `-${outW}px -${outW}px 0 #000, ${outW}px -${outW}px 0 #000, -${outW}px ${outW}px 0 #000, ${outW}px ${outW}px 0 #000` : "none";
+      pc.innerHTML = `${words[0]} ${words[1]} <span style="color:${hl}">${words[2]}</span>`;
+    }
+  };
+
+  $("#ps_pri_color")?.addEventListener("input", e => { $("#ps_pri_hex").value = e.target.value.toUpperCase(); syncPreview(); });
+  $("#ps_pri_hex")?.addEventListener("input", e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) $("#ps_pri_color").value = e.target.value; syncPreview(); });
+  $("#ps_hl_color")?.addEventListener("input", e => { $("#ps_hl_hex").value = e.target.value.toUpperCase(); syncPreview(); });
+  $("#ps_hl_hex")?.addEventListener("input", e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) $("#ps_hl_color").value = e.target.value; syncPreview(); });
+  $("#ps_outline")?.addEventListener("input", e => { $("#ps_out_val").textContent = e.target.value + "px"; syncPreview(); });
+  $("#ps_font")?.addEventListener("change", syncPreview);
+  $("#ps_pos")?.addEventListener("change", syncPreview);
+  $("#ps_upper")?.addEventListener("change", syncPreview);
+  syncPreview();
+  d.showModal();
+}
+
+async function savePresetFromDlg(btn) {
+  const pid = btn.dataset.id || "";
+  const name = ($("#ps_name")?.value || "").trim();
+  if (!name) { toast("Please name your preset."); return; }
+  const data = {
+    id: pid,
+    name,
+    font: $("#ps_font")?.value || "Poppins ExtraBold",
+    size: 132,
+    primary_color: $("#ps_pri_hex")?.value || "#FFFFFF",
+    highlight_color: $("#ps_hl_hex")?.value || "#00F0FF",
+    outline_color: "#000000",
+    outline_width: Number($("#ps_outline")?.value) || 7,
+    shadow: 0,
+    position: $("#ps_pos")?.value || "bottom",
+    uppercase: $("#ps_upper")?.checked ?? true,
+    max_words_per_line: Number($("#ps_words")?.value) || 3
+  };
+  btn.disabled = true;
+  try {
+    await send("/api/presets", data);
+    toast("Preset saved!");
+    $("#presetdlg")?.close();
+    S.status = await api("/api/status");
+    drawShell();
+    if (S.ctab === "setup") drawCreatorForm();
+  } catch (err) {
+    toast(err.message || "Could not save preset.");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function deletePresetFromDlg(btn) {
+  const pid = btn.dataset.id;
+  if (!pid) return;
+  if (!confirm("Are you sure you want to delete this custom preset?")) return;
+  btn.disabled = true;
+  try {
+    await api(`/api/presets/${encodeURIComponent(pid)}`, {method: "DELETE"});
+    toast("Preset deleted.");
+    $("#presetdlg")?.close();
+    S.status = await api("/api/status");
+    drawShell();
+    if (S.ctab === "setup") drawCreatorForm();
+  } catch (err) {
+    toast(err.message || "Could not delete preset.");
+  } finally {
+    btn.disabled = false;
+  }
 }
 function picker(id, aria, items, val) {
   const cur = items.find(x => String(x.v) === String(val)) || items[0];
@@ -2413,6 +2610,10 @@ document.addEventListener("click", async e => {
   try {
     if (a === "go") { closePops(); return go(d.v, d.tab); }
     if (a === "toggletheme") { toggleTheme(); return; }
+    if (a === "openpresetdlg") { openPresetDesigner(); return; }
+    if (a === "closepreset") { $("#presetdlg")?.close(); return; }
+    if (a === "savepreset") { savePresetFromDlg(b); return; }
+    if (a === "delpreset") { deletePresetFromDlg(b); return; }
     if (a === "aimodels") {
       b.disabled = true;
       try {
